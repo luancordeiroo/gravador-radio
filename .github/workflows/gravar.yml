@@ -4,9 +4,12 @@ on:
     - cron: "30 12 * * 1-5"
   workflow_dispatch:
     inputs:
-      segundos:
-        description: "Duração do teste (s)"
-        default: "60"
+      minutos:
+        description: "Gravar AGORA por quantos minutos (2h15 = 135)"
+        default: "135"
+env:
+  INICIO: "10:00"
+  FIM: "12:02"
 jobs:
   gravar:
     runs-on: ubuntu-latest
@@ -20,31 +23,32 @@ jobs:
       - name: Gravar
         env:
           STREAM_URL: ${{ secrets.STREAM_URL }}
-          TESTE: ${{ github.event.inputs.segundos }}
+          MINUTOS: ${{ github.event.inputs.minutos }}
         run: |
-          if [ -n "$TESTE" ]; then
-            DUR=$TESTE
+          if [ -n "$MINUTOS" ]; then
+            DUR=$((MINUTOS*60))
           else
-            START=$(date -u -d "today 13:00" +%s)
-            END=$(date -u -d "today 15:02" +%s)
+            START=$(TZ=America/Sao_Paulo date -d "today $INICIO" +%s)
+            END=$(TZ=America/Sao_Paulo date -d "today $FIM" +%s)
             NOW=$(date +%s)
             if [ $NOW -lt $START ]; then sleep $((START-NOW)); fi
             DUR=$((END-$(date +%s)))
+            if [ $DUR -le 0 ]; then echo "Fora do horário"; exit 1; fi
           fi
           NOME="radio_$(TZ=America/Sao_Paulo date +%F_%Hh%M).mp3"
           ffmpeg -nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -i "$STREAM_URL" -t "$DUR" -vn -c:a libmp3lame -b:a 96k "$NOME"
           echo "NOME=$NOME" >> $GITHUB_ENV
-      - name: Guardar teste
-        if: github.event.inputs.segundos != ''
+      - name: Guardar copia (so manual)
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: teste-audio
+          name: gravacao-manual
           path: radio_*.mp3
           retention-days: 3
       - name: Enviar ao Drive
         env:
           RCLONE_CONFIG_GD_TYPE: drive
-          RCLONE_CONFIG_GD_SCOPE: drive
+          RCLONE_CONFIG_GD_SCOPE: drive.file
           RCLONE_CONFIG_GD_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
           RCLONE_CONFIG_GD_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
           RCLONE_CONFIG_GD_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
