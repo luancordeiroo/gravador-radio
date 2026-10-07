@@ -34,6 +34,13 @@ jobs:
           NOME="radio_$(TZ=America/Sao_Paulo date +%F_%Hh%M).mp3"
           ffmpeg -nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -i "$STREAM_URL" -t "$DUR" -vn -c:a libmp3lame -b:a 96k "$NOME"
           echo "NOME=$NOME" >> $GITHUB_ENV
+      - name: Guardar teste
+        if: github.event.inputs.segundos != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: teste-audio
+          path: radio_*.mp3
+          retention-days: 3
       - name: Enviar ao Drive
         env:
           RCLONE_CONFIG_GD_TYPE: drive
